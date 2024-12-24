@@ -1,0 +1,48 @@
+package oauth2server
+
+import (
+	"fmt"
+)
+
+const (
+	ErrorTypeInvalidRequest          = "invalid_request"
+	ErrorTypeUnauthorizedClient      = "unauthorized_client"
+	ErrorTypeInvalidClient           = "invalid_client"
+	ErrorTypeAccessDenied            = "access_denied"
+	ErrorTypeUnsupportedResponseType = "unsupported_response_type"
+	ErrorTypeInvalidScope            = "invalid_scope"
+	ErrorTypeServerError             = "server_error"
+	ErrorTypeTemporarilyUnavailable  = "temporarily_unavailable"
+	ErrorTypeInvalidGrant            = "invalid_grant"
+	ErrorTypeUnsupportedGrantType    = "unsupported_grant_type"
+)
+
+// An error generated from the oauth2 server during an access token request.
+// This adheres to the error format defined in the oauth2 spec
+// (eg error, error_description, error_uri).
+type OAuthError struct {
+	// what the response status code should be.
+	StatusCode int `json:"-"`
+
+	// an oauth2 error code from the oauth2 spec: https://datatracker.ietf.org/doc/html/rfc6749
+	ErrorType string `json:"error"`
+	// an optional error description explain more about what was wrong
+	ErrorDescription string `json:"error_description,omitempty"`
+	// an optional URI to which a human can visit and get more details about the error
+	ErrorURI string `json:"error_uri,omitempty"`
+
+	// an optional upstream error
+	Cause error `jso:"-"`
+}
+
+func (e OAuthError) Error() string {
+	if e.ErrorDescription == "" {
+		return e.ErrorType
+	}
+
+	return fmt.Sprintf("%s: %s", e.ErrorType, e.ErrorDescription)
+}
+
+func (e OAuthError) Unwrap() error {
+	return e.Cause
+}
