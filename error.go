@@ -35,6 +35,38 @@ type OAuthError struct {
 	Cause error `json:"-"`
 }
 
+func InvalidRequest(format string, a ...any) *OAuthError {
+	return &OAuthError{
+		ErrorType:        ErrorTypeInvalidRequest,
+		ErrorDescription: fmt.Sprintf(format, a...),
+	}
+}
+
+func MissingRequestParameter(paramName string) *OAuthError {
+	return InvalidRequest("request is missing the %s parameter", paramName)
+}
+
+func MissingRequestParameterWithCause(cause error, paramName string) *OAuthError {
+	e := MissingRequestParameter(paramName)
+	e.Cause = cause
+
+	return e
+}
+
+func InvalidClient(format string, a ...any) *OAuthError {
+	return &OAuthError{
+		ErrorType:        ErrorTypeInvalidClient,
+		ErrorDescription: fmt.Sprintf(format, a...),
+	}
+}
+
+func InvalidClientWithCause(cause error, format string, a ...any) *OAuthError {
+	e := InvalidClient(format, a...)
+	e.Cause = cause
+
+	return e
+}
+
 func (e *OAuthError) Error() string {
 	msg := e.ErrorType
 	if e.ErrorDescription != "" {
