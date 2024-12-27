@@ -32,17 +32,22 @@ type OAuthError struct {
 	ErrorURI string `json:"error_uri,omitempty"`
 
 	// an optional upstream error
-	Cause error `jso:"-"`
+	Cause error `json:"-"`
 }
 
-func (e OAuthError) Error() string {
-	if e.ErrorDescription == "" {
-		return e.ErrorType
+func (e *OAuthError) Error() string {
+	msg := e.ErrorType
+	if e.ErrorDescription != "" {
+		msg = fmt.Sprintf("%s: %s", e.ErrorType, e.ErrorDescription)
 	}
 
-	return fmt.Sprintf("%s: %s", e.ErrorType, e.ErrorDescription)
+	if e.Cause != nil {
+		msg = fmt.Sprintf("%s caused by %s", msg, e.Cause.Error())
+	}
+
+	return msg
 }
 
-func (e OAuthError) Unwrap() error {
+func (e *OAuthError) Unwrap() error {
 	return e.Cause
 }

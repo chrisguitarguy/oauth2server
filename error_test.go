@@ -9,7 +9,7 @@ import (
 )
 
 func TestOAuthError_OnlyReturnsErrorTypeIfDescriptionIsNotSet(t *testing.T) {
-	err := oauth2server.OAuthError{
+	err := &oauth2server.OAuthError{
 		ErrorType: oauth2server.ErrorTypeServerError,
 	}
 
@@ -23,7 +23,7 @@ func TestOAuthError_OnlyReturnsErrorTypeIfDescriptionIsNotSet(t *testing.T) {
 }
 
 func TestOAuthError_IncludedErrorDescriptionIfPresent(t *testing.T) {
-	err := oauth2server.OAuthError{
+	err := &oauth2server.OAuthError{
 		ErrorType:        oauth2server.ErrorTypeServerError,
 		ErrorDescription: "ope",
 	}
@@ -45,12 +45,24 @@ func TestOAuthError_IncludedErrorDescriptionIfPresent(t *testing.T) {
 
 func TestOAuthError_CanBeCausedByOtherErrors(t *testing.T) {
 	cause := errors.New("oh noz")
-	err := oauth2server.OAuthError{
+	err := &oauth2server.OAuthError{
 		ErrorType: oauth2server.ErrorTypeServerError,
 		Cause:     cause,
 	}
 
 	if !errors.Is(err, cause) {
 		t.Error("Expected OAuthError to be `errors.Is(...)` of the cause")
+	}
+}
+
+func TestOAuthError_IncludesCauseInErrorMessageIfPresent(t *testing.T) {
+	cause := errors.New("oh noz")
+	err := &oauth2server.OAuthError{
+		ErrorType: oauth2server.ErrorTypeServerError,
+		Cause:     cause,
+	}
+
+	if !strings.Contains(err.Error(), "oh noz") {
+		t.Errorf("Expected oauth error to contain error message from cause, got %q", err.Error())
 	}
 }
