@@ -1,6 +1,7 @@
 package oauth2server
 
 import (
+	"errors"
 	"fmt"
 )
 
@@ -65,6 +66,22 @@ func InvalidClientWithCause(cause error, format string, a ...any) *OAuthError {
 	e.Cause = cause
 
 	return e
+}
+
+func MaybeWrapError(cause error) *OAuthError {
+	if cause == nil {
+		return nil
+	}
+
+	var oauthErr *OAuthError
+	if errors.As(cause, &oauthErr) {
+		return oauthErr
+	}
+
+	return &OAuthError{
+		ErrorType: ErrorTypeServerError,
+		Cause:     cause,
+	}
 }
 
 func (e *OAuthError) Error() string {

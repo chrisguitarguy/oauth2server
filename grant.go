@@ -107,6 +107,10 @@ type Grant interface {
 	// Respond to an access token request. Any non `OAuthError` returned here will
 	// be converted to an `server_error` oauth response without an error description
 	Token(req *AccessTokenRequest) (*AccessTokenResponse, error)
+
+	// the identifier of the grant type. this is used to look up the grant when
+	// a token request comes into the server.
+	ID() string
 }
 
 // Represents a valid authorization request
