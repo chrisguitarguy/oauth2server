@@ -2,29 +2,77 @@ package oauth2server
 
 import (
 	"context"
+	"fmt"
 	"net/http"
+	"net/url"
 )
 
 // Represents a valid authorization request
 type AuthorizationRequest struct {
 	// the oauth client initiation the request
 	ClientID string `json:"client_id"`
+
 	// The redirect URI included in the authorization request.
 	RedirectURI string `json:"redirect_uri,omitempty"`
+
 	// optional: oauth state, empty string == no state
 	State string `json:"state,omitempty"`
+
 	// for Proof key code exchange (PKCE): the code challenge
 	CodeChallenge string `json:"code_challenge,omitempty"`
+
 	// for PKCE code challenge method `plain` or `S256`
 	CodeChallengeMethod string `json:"code_challenge_method,omitempty"`
+
 	// the list of scopes associated with the auth code request
 	Scope []string `json:"scope,omitempty"`
 
 	// the response types that were requested
 	ResponseType []string `json:"response_type,omitempty"`
 
-	// the underlying http request
-	HTTPRequest *http.Request `json:"-"`
+	// the query string values
+	QueryString url.Values `json:"-"`
+}
+
+func ParseAuthorizationRequest(req *http.Request) (*AuthorizationRequest, *OAuthError) {
+	if req.Method != http.MethodGet {
+		return nil, InvalidRequestWithCause(
+			ErrInvalidRequestMethod,
+			"authorization requests should be %s requests",
+			http.MethodGet,
+		)
+	}
+
+	queryString, err := url.ParseQuery(req.URL.RawQuery)
+	if err != nil {
+		return nil, &OAuthError{
+			ErrorType:        ErrorTypeInvalidRequest,
+			ErrorDescription: ErrCouldNotParseQueryString.Error(),
+			Cause:            fmt.Errorf("%w: %w", ErrCouldNotParseQueryString, err),
+		}
+	}
+
+	responseType := queryString.Get(ParamResponseType)
+	if responseType == "" {
+		return nil, MissingRequestParameterWithCause(ErrMissingResponseType, ParamResponseType)
+	}
+
+	clientId := queryString.Get(ParamClientID)
+	if clientId == "" {
+		// should this be an `invalid_client` error :thinking:
+		return nil, MissingRequestParameterWithCause(ErrMissingClientID, ParamClientID)
+	}
+
+	return &AuthorizationRequest{
+		ClientID:            clientId,
+		ResponseType:        ParseSpaceSeparatedParameter(responseType),
+		RedirectURI:         queryString.Get(ParamRedirectURI),
+		Scope:               ParseSpaceSeparatedParameter(queryString.Get(ParamScope)),
+		State:               queryString.Get(ParamState),
+		CodeChallenge:       queryString.Get(ParamCodeChallenge),
+		CodeChallengeMethod: queryString.Get(ParamCodeChallengeMethod),
+		QueryString:         queryString,
+	}, nil
 }
 
 // Able to respond to requested `GrantType` in authorization requests. Eg a
@@ -35,5 +83,10 @@ type AuthorizationHandler interface {
 	ResponseType() string
 
 	// issues the authorization response value.
-	IssueAuthorizationResponse(ctx context.Context, req AuthorizationRequest, user User) string
+	IssueAuthorizationResponse(
+		ctx context.Context,
+		req AuthorizationRequest,
+		client Client,
+		user User,
+	) string
 }

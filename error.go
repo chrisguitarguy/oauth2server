@@ -6,6 +6,7 @@ import (
 )
 
 var (
+	ErrInvalidRequestMethod     = errors.New("invalid request method")
 	ErrCouldNotParseRequestBody = errors.New("could not parse request body")
 	ErrCouldNotParseQueryString = errors.New("could not parse query string")
 	ErrMissingGrantType         = fmt.Errorf("missing %s in request body", ParamGrantType)
@@ -50,6 +51,13 @@ func InvalidRequest(format string, a ...any) *OAuthError {
 		ErrorType:        ErrorTypeInvalidRequest,
 		ErrorDescription: fmt.Sprintf(format, a...),
 	}
+}
+
+func InvalidRequestWithCause(cause error, format string, a ...any) *OAuthError {
+	err := InvalidRequest(format, a...)
+	err.Cause = cause
+
+	return err
 }
 
 func MissingRequestParameter(paramName string) *OAuthError {

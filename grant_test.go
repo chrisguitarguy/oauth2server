@@ -23,6 +23,9 @@ func TestParseAccessTokenRequest_ReturnsErrorIfNotAPostRequest(t *testing.T) {
 	if err.ErrorType != oauth2server.ErrorTypeInvalidRequest {
 		t.Errorf("Expected %q error type, got %q", oauth2server.ErrorTypeInvalidRequest, err.ErrorType)
 	}
+	if !errors.Is(err, oauth2server.ErrInvalidRequestMethod) {
+		t.Errorf("expected an ErrInvalidRequestMethod: %+v", err)
+	}
 }
 
 func TestParseAccessTokenRequest_ErrorsIfBodyCannotBeParsed(t *testing.T) {

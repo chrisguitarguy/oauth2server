@@ -29,7 +29,11 @@ func ParseAccessTokenRequest(r *http.Request) (*AccessTokenRequest, *OAuthError)
 	// theoretically implementations should use their router/servermux to avoid
 	// hitting this error condition, but ... just in case
 	if r.Method != http.MethodPost {
-		return nil, InvalidRequest("token requests must be %s requests", http.MethodPost)
+		return nil, InvalidRequestWithCause(
+			ErrInvalidRequestMethod,
+			"token requests must be %s requests",
+			http.MethodPost,
+		)
 	}
 
 	err := r.ParseForm()
