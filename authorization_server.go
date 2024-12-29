@@ -89,8 +89,10 @@ func (s *defaultAuthorizationServer) ValidateAuthorizationRequest(ctx context.Co
 }
 
 func (s *defaultAuthorizationServer) DenyAuthorizationRequest(ctx context.Context, req *AuthorizationRequest, reason string) *OAuthError {
-	// TODO
-	return nil
+	return &OAuthError{
+		ErrorType: ErrorTypeAccessDenied,
+		ErrorDescription: reason,
+	}
 }
 
 func (s *defaultAuthorizationServer) CompleteAuthorizationRequest(ctx context.Context, req *AuthorizationRequest, user User) (url.Values, *OAuthError) {
