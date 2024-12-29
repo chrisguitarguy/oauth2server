@@ -19,3 +19,19 @@ func TestParseSpaceSeparatedParameter_ReturnsSliceWithValues(t *testing.T) {
 		}
 	}
 }
+
+func TestParseSpaceSeparatedParameter_EmptryStringReturnsNil(t *testing.T) {
+	result := oauth2server.ParseSpaceSeparatedParameter("")
+
+	if result != nil {
+		t.Errorf("expected a nil result for an empty string: %#v", result)
+	}
+}
+
+func TestParseSpaceSeparatedParameter_SpacesOnlyStringReturnsNil(t *testing.T) {
+	result := oauth2server.ParseSpaceSeparatedParameter("\t ")
+
+	if result != nil {
+		t.Errorf("expected a nil result for a string with only spaces: %#v", result)
+	}
+}

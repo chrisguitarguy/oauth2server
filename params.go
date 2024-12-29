@@ -20,7 +20,12 @@ const (
 )
 
 func ParseSpaceSeparatedParameter(rawValue string) []string {
-	parts := strings.Split(strings.TrimSpace(rawValue), spaceSeparator)
+	trimmed := strings.TrimSpace(rawValue)
+	if trimmed == "" {
+		return nil
+	}
+
+	parts := strings.Split(trimmed, spaceSeparator)
 
 	out := []string{}
 	for _, p := range parts {
