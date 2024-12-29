@@ -68,6 +68,13 @@ func InvalidClientWithCause(cause error, format string, a ...any) *OAuthError {
 	return e
 }
 
+func ServerError(cause error) *OAuthError {
+	return &OAuthError{
+		ErrorType: ErrorTypeServerError,
+		Cause:     cause,
+	}
+}
+
 func MaybeWrapError(cause error) *OAuthError {
 	if cause == nil {
 		return nil
@@ -78,10 +85,7 @@ func MaybeWrapError(cause error) *OAuthError {
 		return oauthErr
 	}
 
-	return &OAuthError{
-		ErrorType: ErrorTypeServerError,
-		Cause:     cause,
-	}
+	return ServerError(cause)
 }
 
 func (e *OAuthError) Error() string {
