@@ -2,22 +2,8 @@ package oauth2server
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net/http"
-)
-
-const (
-	ParamClientID     = "client_id"
-	ParamClientSecret = "client_secret"
-	ParamGrantType    = "grant_type"
-)
-
-var (
-	ErrCouldNotParseRequestBody = errors.New("could not parse request body")
-	ErrMissingGrantType         = fmt.Errorf("missing %s in request body", ParamGrantType)
-	ErrMissingClientID          = fmt.Errorf("%s was not included in the request", ParamClientID)
-	ErrMissingClientSecret      = fmt.Errorf("%s was not included in the request", ParamClientSecret)
 )
 
 type AccessTokenResponse struct {

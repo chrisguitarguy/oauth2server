@@ -5,6 +5,15 @@ import (
 	"fmt"
 )
 
+var (
+	ErrCouldNotParseRequestBody = errors.New("could not parse request body")
+	ErrCouldNotParseQueryString = errors.New("could not parse query string")
+	ErrMissingGrantType         = fmt.Errorf("missing %s in request body", ParamGrantType)
+	ErrMissingClientID          = fmt.Errorf("%s was not included in the request", ParamClientID)
+	ErrMissingClientSecret      = fmt.Errorf("%s was not included in the request", ParamClientSecret)
+	ErrMissingResponseType      = fmt.Errorf("%s was not included in the requset", ParamResponseType)
+)
+
 const (
 	ErrorTypeInvalidRequest          = "invalid_request"
 	ErrorTypeUnauthorizedClient      = "unauthorized_client"
