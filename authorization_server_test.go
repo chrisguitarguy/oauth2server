@@ -11,7 +11,7 @@ type authorizationServerTestCase struct {
 	server oauth2server.AuthorizationServer
 }
 
-func startAuthorizationServerTest(t *testing.T, opts... oauth2server.ServerOption) *authorizationServerTestCase {
+func startAuthorizationServerTest(t *testing.T, opts ...oauth2server.ServerOption) *authorizationServerTestCase {
 	server := oauth2server.NewAuthorizationServer(opts...)
 
 	return &authorizationServerTestCase{
