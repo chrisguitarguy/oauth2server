@@ -1,6 +1,7 @@
 package oauth2server
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -106,58 +107,8 @@ func (r *AccessTokenRequest) ParamOrError(paramName string) (string, *OAuthError
 type Grant interface {
 	// Respond to an access token request. Any non `OAuthError` returned here will
 	// be converted to an `server_error` oauth response without an error description
-	Token(req *AccessTokenRequest) (*AccessTokenResponse, error)
+	Token(ctx context.Context, req *AccessTokenRequest) (*AccessTokenResponse, error)
 
-	// the identifier of the grant type. this is used to look up the grant when
-	// a token request comes into the server.
-	ID() string
-}
-
-// Represents a valid authorization request
-type AuthorizationRequest struct {
-	// the oauth client initiation the request
-	ClientID string `json:"client_id"`
-	// The redirect URI included in the authorization request.
-	RedirectURI string `json:"redirect_uri,omitempty"`
-	// optional: oauth state, empty string == no state
-	State string `json:"state,omitempty"`
-	// for Proof key code exchange (PKCE): the code challenge
-	CodeChallenge string `json:"code_challenge,omitempty"`
-	// for PKCE code challenge method `plain` or `S256`
-	CodeChallengeMethod string `json:"code_challenge_method,omitempty"`
-}
-
-// shared interface between authorization complete and denied responses
-type AuthorizationResponse interface {
-	RedirectURI() string
-	State() string
-}
-
-type AuthorizationErrorResponse interface {
-	AuthorizationResponse
-
-	OAuthError() *OAuthError
-}
-
-type AuthorizationCompleteResponse interface {
-	AuthorizationResponse
-
-	AuthCode() string
-}
-
-type AuthorizationCodeGrant interface {
-	Grant
-
-	// parse and validate an authorization request from the incoming request and
-	// return it. Any errors returned here _cannot_ be redirected back to the user.
-	// the OAuthError returned should be used display the error to the user
-	ValidateAuthorizationRequest(req *http.Request) (*AuthorizationRequest, error)
-
-	// Deny the given authorization request. This returns a URL to which the implementation
-	// _must_ redirect the user. The reason here may include more info about why it
-	// was denied by the user.
-	DenyAuthorizationRequest(req AuthorizationRequest, reason string) AuthorizationErrorResponse
-
-	// this will return an error response if `error != nil`
-	CompleteAuthorizationRequest(req AuthorizationRequest, user User) (AuthorizationCompleteResponse, error)
+	// the grant type the grant will handle.
+	GrantType() string
 }

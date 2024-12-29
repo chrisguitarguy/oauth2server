@@ -1,9 +1,11 @@
 package oauth2server
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 )
 
 var (
@@ -15,40 +17,47 @@ var (
 // to this library.
 type AuthorizationServer interface {
 	// respond to a token request and (maybe) issue an access token based on the request
-	Token(req *http.Request) (*AccessTokenResponse, *OAuthError)
+	Token(ctx context.Context, req *http.Request) (*AccessTokenResponse, *OAuthError)
 
 	// parse and validate an authorization request from the incoming request and
 	// return it. Any errors returned here _cannot_ be redirected back to the user.
 	// the OAuthError returned should be used display the error to the user
-	ValidateAuthorizationRequest(req *http.Request) (*AuthorizationRequest, *OAuthError)
+	ValidateAuthorizationRequest(ctx context.Context, req *http.Request) (*AuthorizationRequest, *OAuthError)
 
-	// Deny the given authorization request. This returns a URL to which the implementation
-	// _must_ redirect the user. The reason here may include more info about why it
-	// was denied by the user
-	DenyAuthorizationRequest(req AuthorizationRequest, reason string) (AuthorizationErrorResponse, *OAuthError)
+	// Deny the given authorization request. This can be for whatever reason: a user denied
+	// or the authorization server itself chose not to service the request. The returned
+	// oauth error can be used to generate a redirect response
+	DenyAuthorizationRequest(ctx context.Context, req *AuthorizationRequest, reason string) *OAuthError
 
-	// Complete the authorization request and redirect the user back to the redirect URL.
-	CompleteAuthorizationRequest(req AuthorizationRequest, user User) (AuthorizationCompleteResponse, *OAuthError)
+	// complete the authorization request and returns a set of `url.Values` that can be used
+	// to redirect to the user or an error that can be used to redirect with an error
+	CompleteAuthorizationRequest(ctx context.Context, req *AuthorizationRequest, user User) (url.Values, *OAuthError)
 }
 
 type defaultAuthorizationServer struct {
-	grants        map[string]Grant
-	authCodeGrant AuthorizationCodeGrant
+	grants                map[string]Grant
+	authorizationHandlers map[string]AuthorizationHandler
 }
 
 type ServerOptions struct {
-	grants        map[string]Grant
-	authCodeGrant AuthorizationCodeGrant
+	grants                map[string]Grant
+	authorizationHandlers map[string]AuthorizationHandler
 }
 
 type ServerOption func(*ServerOptions)
 
 func WithGrant(grant Grant) ServerOption {
 	return func(opts *ServerOptions) {
-		opts.grants[grant.ID()] = grant
-		if authCodeGrant, ok := grant.(AuthorizationCodeGrant); ok {
-			opts.authCodeGrant = authCodeGrant
+		opts.grants[grant.GrantType()] = grant
+		if authHandler, ok := grant.(AuthorizationHandler); ok {
+			opts.authorizationHandlers[authHandler.ResponseType()] = authHandler
 		}
+	}
+}
+
+func WithAuthorizationHandler(handler AuthorizationHandler) ServerOption {
+	return func(opts *ServerOptions) {
+		opts.authorizationHandlers[handler.ResponseType()] = handler
 	}
 }
 
@@ -61,8 +70,8 @@ func NewAuthorizationServer(config ...ServerOption) AuthorizationServer {
 	}
 
 	return &defaultAuthorizationServer{
-		grants:        options.grants,
-		authCodeGrant: options.authCodeGrant,
+		grants:                options.grants,
+		authorizationHandlers: options.authorizationHandlers,
 	}
 }
 
@@ -74,37 +83,22 @@ func authCodeNotConfigured() *OAuthError {
 	}
 }
 
-func (s *defaultAuthorizationServer) ValidateAuthorizationRequest(req *http.Request) (*AuthorizationRequest, *OAuthError) {
-	if s.authCodeGrant == nil {
-		// this is _not_ a spec compliant error, but if a user sees this, then the
-		// server is very misconfigured.
-		return nil, authCodeNotConfigured()
-	}
-
-	resp, err := s.authCodeGrant.ValidateAuthorizationRequest(req)
-
-	return resp, MaybeWrapError(err)
+func (s *defaultAuthorizationServer) ValidateAuthorizationRequest(ctx context.Context, req *http.Request) (*AuthorizationRequest, *OAuthError) {
+	// TODO
+	return nil, nil
 }
 
-func (s *defaultAuthorizationServer) DenyAuthorizationRequest(req AuthorizationRequest, reason string) (AuthorizationErrorResponse, *OAuthError) {
-	if s.authCodeGrant == nil {
-		return nil, authCodeNotConfigured()
-	}
-
-	return s.authCodeGrant.DenyAuthorizationRequest(req, reason), nil
+func (s *defaultAuthorizationServer) DenyAuthorizationRequest(ctx context.Context, req *AuthorizationRequest, reason string) *OAuthError {
+	// TODO
+	return nil
 }
 
-func (s *defaultAuthorizationServer) CompleteAuthorizationRequest(req AuthorizationRequest, user User) (AuthorizationCompleteResponse, *OAuthError) {
-	if s.authCodeGrant == nil {
-		return nil, authCodeNotConfigured()
-	}
-
-	resp, err := s.authCodeGrant.CompleteAuthorizationRequest(req, user)
-
-	return resp, MaybeWrapError(err)
+func (s *defaultAuthorizationServer) CompleteAuthorizationRequest(ctx context.Context, req *AuthorizationRequest, user User) (url.Values, *OAuthError) {
+	// TODO
+	return nil, nil
 }
 
-func (s *defaultAuthorizationServer) Token(req *http.Request) (*AccessTokenResponse, *OAuthError) {
+func (s *defaultAuthorizationServer) Token(ctx context.Context, req *http.Request) (*AccessTokenResponse, *OAuthError) {
 	tokenRequest, err := ParseAccessTokenRequest(req)
 	if err != nil {
 		return nil, err
@@ -118,7 +112,7 @@ func (s *defaultAuthorizationServer) Token(req *http.Request) (*AccessTokenRespo
 		}
 	}
 
-	resp, grantErr := grant.Token(tokenRequest)
+	resp, grantErr := grant.Token(ctx, tokenRequest)
 
 	return resp, MaybeWrapError(grantErr)
 }
