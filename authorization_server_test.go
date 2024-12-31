@@ -8,14 +8,17 @@ import (
 )
 
 type authorizationServerTestCase struct {
-	server oauth2server.AuthorizationServer
+	clients *oauth2server.InMemoryClientRepository
+	server  oauth2server.AuthorizationServer
 }
 
 func startAuthorizationServerTest(t *testing.T, opts ...oauth2server.ServerOption) *authorizationServerTestCase {
-	server := oauth2server.NewAuthorizationServer(opts...)
+	clients := oauth2server.NewInMemoryClientRepository()
+	server := oauth2server.NewAuthorizationServer(clients, opts...)
 
 	return &authorizationServerTestCase{
-		server: server,
+		clients: clients,
+		server:  server,
 	}
 }
 

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strings"
 )
 
 var (
@@ -20,8 +21,9 @@ type AuthorizationServer interface {
 	Token(ctx context.Context, req *http.Request) (*AccessTokenResponse, *OAuthError)
 
 	// parse and validate an authorization request from the incoming request and
-	// return it. Any errors returned here _cannot_ be redirected back to the user.
-	// the OAuthError returned should be used display the error to the user
+	// return it. If both an authorization requset AND error are returned here, the user
+	// may be redirected with an error. If only an error is returned, the user _must not_
+	// be redirected and the error should be show on the authorization server.
 	ValidateAuthorizationRequest(ctx context.Context, req *http.Request) (*AuthorizationRequest, *OAuthError)
 
 	// Deny the given authorization request. This can be for whatever reason: a user denied
@@ -34,14 +36,10 @@ type AuthorizationServer interface {
 	CompleteAuthorizationRequest(ctx context.Context, req *AuthorizationRequest, user User) (url.Values, *OAuthError)
 }
 
-type defaultAuthorizationServer struct {
-	grants                map[string]Grant
-	authorizationHandlers map[string]AuthorizationHandler
-}
-
 type ServerOptions struct {
 	grants                map[string]Grant
 	authorizationHandlers map[string]AuthorizationHandler
+	scopeValidator        ScopeValidator
 }
 
 type ServerOption func(*ServerOptions)
@@ -61,29 +59,65 @@ func WithAuthorizationHandler(handler AuthorizationHandler) ServerOption {
 	}
 }
 
-func NewAuthorizationServer(config ...ServerOption) AuthorizationServer {
+func WithScopeValidator(s ScopeValidator) ServerOption {
+	return func(opts *ServerOptions) {
+		if s != nil {
+			opts.scopeValidator = s
+		}
+	}
+}
+
+type defaultAuthorizationServer struct {
+	clients               ClientRepository
+	scopeValidator        ScopeValidator
+	grants                map[string]Grant
+	authorizationHandlers map[string]AuthorizationHandler
+}
+
+func NewAuthorizationServer(clients ClientRepository, config ...ServerOption) AuthorizationServer {
 	options := &ServerOptions{
-		grants: make(map[string]Grant),
+		grants:                make(map[string]Grant),
+		authorizationHandlers: make(map[string]AuthorizationHandler),
+		scopeValidator:        AllowAllScopes(),
 	}
 	for _, c := range config {
 		c(options)
 	}
 
 	return &defaultAuthorizationServer{
+		clients:               clients,
+		scopeValidator:        options.scopeValidator,
 		grants:                options.grants,
 		authorizationHandlers: options.authorizationHandlers,
 	}
 }
 
-func authCodeNotConfigured() *OAuthError {
-	return &OAuthError{
-		ErrorType:        ErrorTypeUnsupportedGrantType,
-		ErrorDescription: ErrAuthCodeGrantNotSet.Error(),
-		Cause:            ErrAuthCodeGrantNotSet,
-	}
-}
-
 func (s *defaultAuthorizationServer) ValidateAuthorizationRequest(ctx context.Context, req *http.Request) (*AuthorizationRequest, *OAuthError) {
+	authReq, err := ParseAuthorizationRequest(req)
+	if err != nil {
+		return nil, err
+	}
+
+	client, clientErr := GetClient(ctx, s.clients, authReq.ClientID)
+	if clientErr != nil {
+		return nil, clientErr
+	}
+
+	if err := ValidateRedirectURI(ctx, client, authReq.RedirectURI); err != nil {
+		return nil, err
+	}
+
+	// at this point we know the redirect URI is valid and any error from here out
+	// can be sent back to the redirect URI.
+
+	if err := s.checkAuthorizationResponseType(client, authReq.ResponseType); err != nil {
+		return authReq, err
+	}
+
+	if err := s.scopeValidator.ValidateScopes(ctx, authReq.Scope); err != nil {
+		return authReq, MaybeWrapError(err)
+	}
+
 	// TODO
 	return nil, nil
 }
@@ -117,4 +151,27 @@ func (s *defaultAuthorizationServer) Token(ctx context.Context, req *http.Reques
 	resp, grantErr := grant.Token(ctx, tokenRequest)
 
 	return resp, MaybeWrapError(grantErr)
+}
+
+func (s *defaultAuthorizationServer) checkAuthorizationResponseType(client Client, wantedTypes []string) *OAuthError {
+	var invalid []string
+	for _, t := range wantedTypes {
+		if _, ok := s.authorizationHandlers[t]; !ok {
+			invalid = append(invalid, t)
+		}
+	}
+
+	if len(invalid) > 0 {
+		return UnsupportedResponseType(invalid)
+	}
+
+	if check, ok := client.(ClientAllowsResponseType); ok && !check.AllowsResponseType(wantedTypes) {
+		return UnauthorizedClient(fmt.Sprintf(
+			"client %s does not support response type: %s",
+			client.ID(),
+			strings.Join(wantedTypes, " "),
+		))
+	}
+
+	return nil
 }
