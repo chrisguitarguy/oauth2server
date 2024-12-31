@@ -7,13 +7,17 @@ import (
 )
 
 var (
-	ErrInvalidRequestMethod     = errors.New("invalid request method")
-	ErrCouldNotParseRequestBody = errors.New("could not parse request body")
-	ErrCouldNotParseQueryString = errors.New("could not parse query string")
-	ErrMissingGrantType         = fmt.Errorf("missing %s in request body", ParamGrantType)
-	ErrMissingClientID          = fmt.Errorf("%s was not included in the request", ParamClientID)
-	ErrMissingClientSecret      = fmt.Errorf("%s was not included in the request", ParamClientSecret)
-	ErrMissingResponseType      = fmt.Errorf("%s was not included in the requset", ParamResponseType)
+	ErrInvalidRequestMethod      = errors.New("invalid request method")
+	ErrCouldNotParseRequestBody  = errors.New("could not parse request body")
+	ErrCouldNotParseQueryString  = errors.New("could not parse query string")
+	ErrMissingGrantType          = fmt.Errorf("missing %s in request body", ParamGrantType)
+	ErrMissingClientID           = fmt.Errorf("%s was not included in the request", ParamClientID)
+	ErrClientNotFound            = errors.New("client not found")
+	ErrClientHasNoRedirectURIs   = errors.New("client does not have any redirect URIs")
+	ErrClientRequiresRedirectURI = errors.New("the client has >1 redirect uri and redirect_uri must be included in the request")
+	ErrClientInvalidRedirectURI  = errors.New("redirect_uri in request was not valid for the client")
+	ErrMissingClientSecret       = fmt.Errorf("%s was not included in the request", ParamClientSecret)
+	ErrMissingResponseType       = fmt.Errorf("%s was not included in the requset", ParamResponseType)
 )
 
 const (
@@ -114,6 +118,20 @@ func InvalidScope(invalidScopes []string) *OAuthError {
 	return &OAuthError{
 		ErrorType:        ErrorTypeInvalidScope,
 		ErrorDescription: fmt.Sprintf("invalid scopes: %s", strings.Join(invalidScopes, " ")),
+	}
+}
+
+func UnsupportedResponseType(invalidTypes []string) *OAuthError {
+	return &OAuthError{
+		ErrorType:        ErrorTypeUnsupportedResponseType,
+		ErrorDescription: fmt.Sprintf("unsupported response types: %s", strings.Join(invalidTypes, " ")),
+	}
+}
+
+func UnauthorizedClient(reason string) *OAuthError {
+	return &OAuthError{
+		ErrorType:        ErrorTypeUnauthorizedClient,
+		ErrorDescription: reason,
 	}
 }
 
