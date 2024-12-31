@@ -3,6 +3,7 @@ package oauth2server
 import (
 	"errors"
 	"fmt"
+	"strings"
 )
 
 var (
@@ -44,6 +45,23 @@ type OAuthError struct {
 
 	// an optional upstream error
 	Cause error `json:"-"`
+}
+
+func (e *OAuthError) Error() string {
+	msg := e.ErrorType
+	if e.ErrorDescription != "" {
+		msg = fmt.Sprintf("%s: %s", e.ErrorType, e.ErrorDescription)
+	}
+
+	if e.Cause != nil {
+		msg = fmt.Sprintf("%s caused by %s", msg, e.Cause.Error())
+	}
+
+	return msg
+}
+
+func (e *OAuthError) Unwrap() error {
+	return e.Cause
 }
 
 func InvalidRequest(format string, a ...any) *OAuthError {
@@ -92,32 +110,30 @@ func ServerError(cause error) *OAuthError {
 	}
 }
 
+func InvalidScope(invalidScopes []string) *OAuthError {
+	return &OAuthError{
+		ErrorType:        ErrorTypeInvalidScope,
+		ErrorDescription: fmt.Sprintf("invalid scopes: %s", strings.Join(invalidScopes, " ")),
+	}
+}
+
+func AsOAuthError(err error) (*OAuthError, bool) {
+	var oauthErr *OAuthError
+	if errors.As(err, &oauthErr) {
+		return oauthErr, true
+	}
+
+	return nil, false
+}
+
 func MaybeWrapError(cause error) *OAuthError {
 	if cause == nil {
 		return nil
 	}
 
-	var oauthErr *OAuthError
-	if errors.As(cause, &oauthErr) {
+	if oauthErr, ok := AsOAuthError(cause); ok {
 		return oauthErr
 	}
 
 	return ServerError(cause)
-}
-
-func (e *OAuthError) Error() string {
-	msg := e.ErrorType
-	if e.ErrorDescription != "" {
-		msg = fmt.Sprintf("%s: %s", e.ErrorType, e.ErrorDescription)
-	}
-
-	if e.Cause != nil {
-		msg = fmt.Sprintf("%s caused by %s", msg, e.Cause.Error())
-	}
-
-	return msg
-}
-
-func (e *OAuthError) Unwrap() error {
-	return e.Cause
 }
