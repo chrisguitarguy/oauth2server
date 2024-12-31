@@ -165,3 +165,23 @@ func TestParseAuthorizationRequest_MinimalRequestIsValid(t *testing.T) {
 		t.Errorf("bad scope: %+v != nil", req.Scope)
 	}
 }
+
+func TestParseAuthorizationRequest_SetsPlainCodeChallengeMethodIfMissing(t *testing.T) {
+	vals := make(url.Values)
+	vals.Set(oauth2server.ParamClientID, "abc123")
+	vals.Set(oauth2server.ParamResponseType, "code")
+	vals.Set(oauth2server.ParamCodeChallenge, "shh")
+
+	httpReq := httptest.NewRequest(http.MethodGet, "/authorize?"+vals.Encode(), nil)
+	req, err := oauth2server.ParseAuthorizationRequest(httpReq)
+
+	if err != nil {
+		t.Errorf("expected nor error, got %v", err)
+	}
+	if req == nil {
+		t.Fatal("expected not nil request")
+	}
+	if req.CodeChallengeMethod != oauth2server.CodeChallengeMethodPlain {
+		t.Errorf("expected to default to %q code challenge method, got %q", oauth2server.CodeChallengeMethodPlain, req.CodeChallengeMethod)
+	}
+}

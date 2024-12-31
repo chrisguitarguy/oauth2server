@@ -63,14 +63,22 @@ func ParseAuthorizationRequest(req *http.Request) (*AuthorizationRequest, *OAuth
 		return nil, MissingRequestParameterWithCause(ErrMissingClientID, ParamClientID)
 	}
 
+	codeChallenge := queryString.Get(ParamCodeChallenge)
+	challengeMethod := queryString.Get(ParamCodeChallengeMethod)
+	// https://datatracker.ietf.org/doc/html/rfc7636#section-4.3
+	// defaults to plain if no present in the request
+	if codeChallenge != "" && challengeMethod == "" {
+		challengeMethod = CodeChallengeMethodPlain
+	}
+
 	return &AuthorizationRequest{
 		ClientID:            clientId,
 		ResponseType:        ParseSpaceSeparatedParameter(responseType),
 		RedirectURI:         queryString.Get(ParamRedirectURI),
 		Scope:               ParseSpaceSeparatedParameter(queryString.Get(ParamScope)),
 		State:               queryString.Get(ParamState),
-		CodeChallenge:       queryString.Get(ParamCodeChallenge),
-		CodeChallengeMethod: queryString.Get(ParamCodeChallengeMethod),
+		CodeChallenge:       codeChallenge,
+		CodeChallengeMethod: challengeMethod,
 		QueryString:         queryString,
 	}, nil
 }

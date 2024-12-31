@@ -18,6 +18,7 @@ var (
 	ErrClientInvalidRedirectURI  = errors.New("redirect_uri in request was not valid for the client")
 	ErrMissingClientSecret       = fmt.Errorf("%s was not included in the request", ParamClientSecret)
 	ErrMissingResponseType       = fmt.Errorf("%s was not included in the requset", ParamResponseType)
+	ErrUnsupportedCodeChallengeMethod = errors.New("code challenge method not supported")
 )
 
 const (
