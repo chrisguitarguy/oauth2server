@@ -90,3 +90,61 @@ func TestInMemoryClientRepository_ClientsCanBeManagedInMemory(t *testing.T) {
 		t.Errorf("expected error to be nil after remove, got %+v", err)
 	}
 }
+
+func TestGetClient_ReturnsWrappedErrorIfGetErrors(t *testing.T) {
+	clientId := "clientidhere"
+	clients := oauth2server.NewInMemoryClientRepository()
+	expectedErr := errors.New("ope")
+	clients.AddError(clientId, expectedErr)
+
+	client, err := oauth2server.GetClient(context.Background(), clients, clientId)
+
+	if client != nil {
+		t.Errorf("expected a nil client, got %+v", client)
+	}
+	if err == nil {
+		t.Error("expected an error, got nil")
+	}
+	if !errors.Is(err, expectedErr) {
+		t.Errorf("expected the error returned to wrap the client error, got %v", err)
+	}
+	if err.ErrorType != oauth2server.ErrorTypeServerError {
+		t.Errorf("%q != %q", err.ErrorType, oauth2server.ErrorTypeServerError)
+	}
+}
+
+func TestGetClient_ReturnsNotFoundErrorIfClientDoesNotExist(t *testing.T) {
+	clientId := "clientidhere"
+	clients := oauth2server.NewInMemoryClientRepository()
+
+	client, err := oauth2server.GetClient(context.Background(), clients, clientId)
+
+	if client != nil {
+		t.Errorf("expected a nil client, got %+v", client)
+	}
+	if err == nil {
+		t.Error("expected an error, got nil")
+	}
+	if !errors.Is(err, oauth2server.ErrClientNotFound) {
+		t.Errorf("expected ErrClientNotFound, got %s", err)
+	}
+	if err.ErrorType != oauth2server.ErrorTypeInvalidClient {
+		t.Errorf("%q != %q", err.ErrorType, oauth2server.ErrorTypeInvalidClient)
+	}
+}
+
+func TestGetClient_ReturnsClientWhenFound(t *testing.T) {
+	clientId := "clientidhere"
+	expectedClient := oauth2server.NewPublicSimpleClient(clientId, []string{"http://example.com"})
+	clients := oauth2server.NewInMemoryClientRepository()
+	clients.Add(expectedClient)
+
+	client, err := oauth2server.GetClient(context.Background(), clients, clientId)
+
+	if client != expectedClient {
+		t.Errorf("invalid client returned: %v != %v", client, expectedClient)
+	}
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+}

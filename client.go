@@ -35,12 +35,33 @@ type ClientAllowsGrantType interface {
 	AllowsGrantType(grantType string) bool
 }
 
+// extension point to allow clients to block response types
+type ClientAllowsResponseType interface {
+	AllowsResponseType(responseType []string) bool
+}
+
 // A storage backend for oauth2 clients.
 type ClientRepository interface {
 	// Get a single client by its identifier, return a `nil` client if the client
 	// with the given identifier is not found. Any errors returned here will
 	// be propgaged as server errors.
 	Get(ctx context.Context, id string) (Client, error)
+}
+
+// fetch a client from the ClientRepository specifically for an authorization request.
+// this includes a requirement that clients for auth requests have at least one
+// redirect uri registered.
+func GetClient(ctx context.Context, clients ClientRepository, clientId string) (Client, *OAuthError) {
+	client, err := clients.Get(ctx, clientId)
+	if err != nil {
+		return nil, MaybeWrapError(err)
+	}
+
+	if client == nil {
+		return nil, InvalidClientWithCause(ErrClientNotFound, "client %s not found", clientId)
+	}
+
+	return client, nil
 }
 
 type SimpleClient struct {
