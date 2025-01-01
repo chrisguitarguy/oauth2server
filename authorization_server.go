@@ -40,6 +40,7 @@ type ServerOptions struct {
 	grants                map[string]Grant
 	authorizationHandlers map[string]AuthorizationHandler
 	scopeValidator        ScopeValidator
+	pkces                 []PKCE
 }
 
 type ServerOption func(*ServerOptions)
@@ -61,15 +62,20 @@ func WithAuthorizationHandler(handler AuthorizationHandler) ServerOption {
 
 func WithScopeValidator(s ScopeValidator) ServerOption {
 	return func(opts *ServerOptions) {
-		if s != nil {
-			opts.scopeValidator = s
-		}
+		opts.scopeValidator = s
+	}
+}
+
+func WithPKCE(p ...PKCE) ServerOption {
+	return func(opts *ServerOptions) {
+		opts.pkces = append(opts.pkces, p...)
 	}
 }
 
 type defaultAuthorizationServer struct {
 	clients               ClientRepository
 	scopeValidator        ScopeValidator
+	pkce                  PKCE
 	grants                map[string]Grant
 	authorizationHandlers map[string]AuthorizationHandler
 }
@@ -84,9 +90,16 @@ func NewAuthorizationServer(clients ClientRepository, config ...ServerOption) Au
 		c(options)
 	}
 
+	if options.scopeValidator == nil {
+		options.scopeValidator = AllowAllScopes()
+	}
+
+	pkce := NewDefaultPKCE(options.pkces...)
+
 	return &defaultAuthorizationServer{
 		clients:               clients,
 		scopeValidator:        options.scopeValidator,
+		pkce:                  pkce,
 		grants:                options.grants,
 		authorizationHandlers: options.authorizationHandlers,
 	}
