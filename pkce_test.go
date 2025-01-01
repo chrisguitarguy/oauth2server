@@ -153,3 +153,49 @@ func TestNewDefaultPKCE_IncludesExtraMethodsIfSupplied(t *testing.T) {
 		t.Errorf("expected challenge method from extra PKCE passed in")
 	}
 }
+
+func TestVerifyCodeChallenge_ErrorsIfChallengeMethodIsNotSupported(t *testing.T) {
+	pk := oauth2server.NewDefaultPKCE()
+
+	err := oauth2server.ValidateCodeChallenge(context.Background(), pk, "invalid", "challenge")
+
+	if err == nil {
+		t.Fatalf("expected an error")
+	}
+	if !errors.Is(err, oauth2server.ErrUnsupportedCodeChallengeMethod) {
+		t.Errorf("expected ErrUnsupportedCodeChallengeMethod, got %v", err)
+	}
+}
+
+func TestVerifyCodeChallenge_ErrorsIfChallengeIsNotValid(t *testing.T) {
+	pk := oauth2server.NewDefaultPKCE()
+
+	err := oauth2server.ValidateCodeChallenge(
+		context.Background(),
+		pk,
+		oauth2server.CodeChallengeMethodPlain,
+		"challenge!", // too short and invalid chars
+	)
+
+	if err == nil {
+		t.Fatalf("expected an error")
+	}
+	if !errors.Is(err, oauth2server.ErrInvalidCodeChallenge) {
+		t.Errorf("expected ErrInvalidCodeChallenge, got %v", err)
+	}
+}
+
+func TestVerifyCodeChallenge_ValidatesIfTheChallengeIsValid(t *testing.T) {
+	pk := oauth2server.NewDefaultPKCE()
+
+	err := oauth2server.ValidateCodeChallenge(
+		context.Background(),
+		pk,
+		oauth2server.CodeChallengeMethodPlain,
+		"challenge-challenge-challenge-challenge-challenge", // supasecure
+	)
+
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+}

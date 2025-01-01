@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"maps"
+	"regexp"
 	"slices"
 )
 
@@ -112,4 +113,27 @@ func (p *compositePKCE) VerifyCodeChallenge(ctx context.Context, method string, 
 	}
 
 	return pkce.VerifyCodeChallenge(ctx, method, challenge, verifier)
+}
+
+// this has to account for plain challenges.
+var challengeRegex = regexp.MustCompile("^[a-zA-Z0-9~._-]{43,128}$")
+
+// ensure that the challenge method is supported and a client set a valid code challenge
+func ValidateCodeChallenge(ctx context.Context, pkce PKCE, method string, challenge string) *OAuthError {
+	if !slices.Contains(pkce.ChallengeMethods(), method) {
+		return InvalidRequestWithCause(
+			ErrUnsupportedCodeChallengeMethod,
+			"%s challenge methods not supported",
+			method,
+		)
+	}
+
+	if !challengeRegex.MatchString(challenge) {
+		return InvalidRequestWithCause(
+			ErrInvalidCodeChallenge,
+			ErrInvalidCodeChallenge.Error(),
+		)
+	}
+
+	return nil
 }

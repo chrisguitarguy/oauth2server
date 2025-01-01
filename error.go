@@ -19,6 +19,7 @@ var (
 	ErrMissingClientSecret            = fmt.Errorf("%s was not included in the request", ParamClientSecret)
 	ErrMissingResponseType            = fmt.Errorf("%s was not included in the requset", ParamResponseType)
 	ErrUnsupportedCodeChallengeMethod = errors.New("code challenge method not supported")
+	ErrInvalidCodeChallenge           = errors.New("code challenges must be 43-128 alphanumeric characters, dashes, or underscores")
 )
 
 const (
