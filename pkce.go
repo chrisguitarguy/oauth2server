@@ -35,6 +35,10 @@ func constantTimeCompare(a, b string) bool {
 type plainPKCE struct {
 }
 
+func NewPlainPKCE() PKCE {
+	return &plainPKCE{}
+}
+
 func (p *plainPKCE) ChallengeMethods() []string {
 	return []string{CodeChallengeMethodPlain}
 }
@@ -48,6 +52,10 @@ func (p *plainPKCE) VerifyCodeChallenge(ctx context.Context, method string, chal
 }
 
 type s256PKCE struct {
+}
+
+func NewS256PKCE() PKCE {
+	return &s256PKCE{}
 }
 
 func (p *s256PKCE) ChallengeMethods() []string {
@@ -72,12 +80,12 @@ type compositePKCE struct {
 func NewDefaultPKCE(extra ...PKCE) PKCE {
 	methods := map[string]PKCE{}
 
-	plain := &plainPKCE{}
+	plain := NewPlainPKCE()
 	for _, method := range plain.ChallengeMethods() {
 		methods[method] = plain
 	}
 
-	s256 := &s256PKCE{}
+	s256 := NewS256PKCE()
 	for _, method := range s256.ChallengeMethods() {
 		methods[method] = s256
 	}

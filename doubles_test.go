@@ -34,3 +34,30 @@ func (c *SpyClient) ValidRedirectURI(ctx context.Context, redirectUri string) bo
 	c.validRedirectURICalls = append(c.validRedirectURICalls, redirectUri)
 	return c.validRedirectURIReturn
 }
+
+type spyPKCEVerifyCall struct {
+	method    string
+	challenge string
+	verifier  string
+}
+
+type spyPKCE struct {
+	methods      []string
+	verifyReturn bool
+	verifyError  error
+	verifyCalls  []spyPKCEVerifyCall
+}
+
+func (p *spyPKCE) ChallengeMethods() []string {
+	return p.methods
+}
+
+func (p *spyPKCE) VerifyCodeChallenge(ctx context.Context, method string, challenge string, verifier string) (bool, error) {
+	p.verifyCalls = append(p.verifyCalls, spyPKCEVerifyCall{
+		method:    method,
+		challenge: challenge,
+		verifier:  verifier,
+	})
+
+	return p.verifyReturn, p.verifyError
+}

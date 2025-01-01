@@ -9,6 +9,32 @@ import (
 	"github.com/chrisguitarguy/oauth2server"
 )
 
+func TestPlainPKCE_VerifyCodeChallenge_ErrorsWithOtherMethods(t *testing.T) {
+	pk := oauth2server.NewPlainPKCE()
+
+	_, err := pk.VerifyCodeChallenge(context.Background(), "badmethod", "challenge", "verifier")
+
+	if err == nil {
+		t.Fatalf("expected an error")
+	}
+	if !errors.Is(err, oauth2server.ErrUnsupportedCodeChallengeMethod) {
+		t.Errorf("expected ErrUnsupportedCodeChallengeMethod, got %v", err)
+	}
+}
+
+func TestS256PKCE_VerifyCodeChallenge_ErrorsWithOtherMethods(t *testing.T) {
+	pk := oauth2server.NewS256PKCE()
+
+	_, err := pk.VerifyCodeChallenge(context.Background(), "badmethod", "challenge", "verifier")
+
+	if err == nil {
+		t.Fatalf("expected an error")
+	}
+	if !errors.Is(err, oauth2server.ErrUnsupportedCodeChallengeMethod) {
+		t.Errorf("expected ErrUnsupportedCodeChallengeMethod, got %v", err)
+	}
+}
+
 func TestDefaultPKCE_SupportsKnownMethods(t *testing.T) {
 	pk := oauth2server.NewDefaultPKCE()
 
@@ -113,5 +139,17 @@ func TestDefaultPKCE_VerifyCodeChallenge_WithS256DoesNotValidateIfVerifierDoesNo
 	}
 	if ok {
 		t.Error("expected challenge not to be verified")
+	}
+}
+
+func TestNewDefaultPKCE_IncludesExtraMethodsIfSupplied(t *testing.T) {
+	stub := &spyPKCE{
+		methods: []string{"test"},
+	}
+
+	pk := oauth2server.NewDefaultPKCE(stub)
+
+	if !slices.Contains(pk.ChallengeMethods(), "test") {
+		t.Errorf("expected challenge method from extra PKCE passed in")
 	}
 }
