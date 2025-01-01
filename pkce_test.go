@@ -104,7 +104,7 @@ func TestDefaultPKCE_VerifyCodeChallenge_WithPlainDoesNotValidateIfVerifierDoesN
 
 func TestDefaultPKCE_VerifyCodeChallenge_WithS256ValidatesIfVerifierMatches(t *testing.T) {
 	pk := oauth2server.NewDefaultPKCE()
-	challenge := "n4bQgYhMfWWaL-qgxVrQFaO_TxsrC4Is0V1sFbDwCgg="
+	challenge := "n4bQgYhMfWWaL-qgxVrQFaO_TxsrC4Is0V1sFbDwCgg"
 	verifier := "test"
 
 	ok, err := pk.VerifyCodeChallenge(

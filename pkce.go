@@ -68,7 +68,7 @@ func (p *s256PKCE) VerifyCodeChallenge(ctx context.Context, method string, chall
 	}
 
 	rawVerifierHash := sha256.Sum256([]byte(verifier))
-	expectedVerifier := base64.URLEncoding.EncodeToString(rawVerifierHash[:])
+	expectedVerifier := base64.RawURLEncoding.EncodeToString(rawVerifierHash[:])
 
 	return constantTimeCompare(expectedVerifier, challenge), nil
 }
