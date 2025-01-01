@@ -6,6 +6,8 @@ import (
 	"crypto/subtle"
 	"encoding/base64"
 	"fmt"
+	"maps"
+	"slices"
 )
 
 const (
@@ -20,43 +22,86 @@ const (
 // code is used the client sends a "code verifier" which is then used with the method
 // to re-compute the challenge.
 type PKCE interface {
-	// Check to see if the incomign challenge method is supported
-	SupportsChallengeMethod(method string) bool
+	ChallengeMethods() []string
 
-	// verify the code challenge.
+	// verify the code challenge. how that happens depends on the method.
 	VerifyCodeChallenge(ctx context.Context, method string, challenge string, verifier string) (bool, error)
 }
 
-type defaultPKCE struct {
+func constantTimeCompare(a, b string) bool {
+	return subtle.ConstantTimeCompare([]byte(a), []byte(b)) == 1
 }
 
-func NewDefaultPKCE() PKCE {
-	return &defaultPKCE{}
+type plainPKCE struct {
 }
 
-func (p *defaultPKCE) SupportsChallengeMethod(method string) bool {
-	return method == CodeChallengeMethodPlain || method == CodeChallengeMethodS256
+func (p *plainPKCE) ChallengeMethods() []string {
+	return []string{CodeChallengeMethodPlain}
 }
 
-func (p *defaultPKCE) VerifyCodeChallenge(ctx context.Context, method string, challenge string, verifier string) (bool, error) {
-	expectedChallenge, err := p.computeChallenge(method, verifier)
-	if err != nil {
-		return false, err
+func (p *plainPKCE) VerifyCodeChallenge(ctx context.Context, method string, challenge string, verifier string) (bool, error) {
+	if method != CodeChallengeMethodPlain {
+		return false, fmt.Errorf("%w: %s", ErrUnsupportedCodeChallengeMethod, method)
 	}
 
-	return subtle.ConstantTimeCompare([]byte(expectedChallenge), []byte(challenge)) == 1, nil
+	return constantTimeCompare(verifier, challenge), nil
 }
 
-func (p *defaultPKCE) computeChallenge(method string, verifier string) (string, error) {
-	if method == CodeChallengeMethodPlain {
-		return verifier, nil
-	}
+type s256PKCE struct {
+}
 
+func (p *s256PKCE) ChallengeMethods() []string {
+	return []string{CodeChallengeMethodS256}
+}
+
+func (p *s256PKCE) VerifyCodeChallenge(ctx context.Context, method string, challenge string, verifier string) (bool, error) {
 	if method != CodeChallengeMethodS256 {
-		return "", fmt.Errorf("%w: %s", ErrUnsupportedCodeChallengeMethod, method)
+		return false, fmt.Errorf("%w: %s", ErrUnsupportedCodeChallengeMethod, method)
 	}
 
-	raw := sha256.Sum256([]byte(verifier))
+	rawVerifierHash := sha256.Sum256([]byte(verifier))
+	expectedVerifier := base64.URLEncoding.EncodeToString(rawVerifierHash[:])
 
-	return base64.URLEncoding.EncodeToString(raw[:]), nil
+	return constantTimeCompare(expectedVerifier, challenge), nil
+}
+
+type compositePKCE struct {
+	methods map[string]PKCE
+}
+
+func NewDefaultPKCE(extra ...PKCE) PKCE {
+	methods := map[string]PKCE{}
+
+	plain := &plainPKCE{}
+	for _, method := range plain.ChallengeMethods() {
+		methods[method] = plain
+	}
+
+	s256 := &s256PKCE{}
+	for _, method := range s256.ChallengeMethods() {
+		methods[method] = s256
+	}
+
+	for _, pkce := range extra {
+		for _, method := range pkce.ChallengeMethods() {
+			methods[method] = pkce
+		}
+	}
+
+	return &compositePKCE{
+		methods: methods,
+	}
+}
+
+func (p *compositePKCE) ChallengeMethods() []string {
+	return slices.Collect(maps.Keys(p.methods))
+}
+
+func (p *compositePKCE) VerifyCodeChallenge(ctx context.Context, method string, challenge string, verifier string) (bool, error) {
+	pkce, ok := p.methods[method]
+	if !ok {
+		return false, fmt.Errorf("%w: %s", ErrUnsupportedCodeChallengeMethod, method)
+	}
+
+	return pkce.VerifyCodeChallenge(ctx, method, challenge, verifier)
 }

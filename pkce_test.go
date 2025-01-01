@@ -3,6 +3,7 @@ package oauth2server_test
 import (
 	"context"
 	"errors"
+	"slices"
 	"testing"
 
 	"github.com/chrisguitarguy/oauth2server"
@@ -13,22 +14,12 @@ func TestDefaultPKCE_SupportsKnownMethods(t *testing.T) {
 
 	for _, method := range []string{oauth2server.CodeChallengeMethodPlain, oauth2server.CodeChallengeMethodS256} {
 		t.Run(method, func(t *testing.T) {
-			supports := pk.SupportsChallengeMethod(method)
+			methods := pk.ChallengeMethods()
 
-			if !supports {
+			if !slices.Contains(methods, method) {
 				t.Errorf("expected default pkce to support %q", method)
 			}
 		})
-	}
-}
-
-func TestDefaultPKCE_DoesNotSupportUnknownMethods(t *testing.T) {
-	pk := oauth2server.NewDefaultPKCE()
-
-	supports := pk.SupportsChallengeMethod("something")
-
-	if supports {
-		t.Error("did not expect default PKCE to support random challenge methods")
 	}
 }
 
