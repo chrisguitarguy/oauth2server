@@ -15,6 +15,11 @@ type AuthorizationRequest struct {
 	// The redirect URI included in the authorization request.
 	RedirectURI string `json:"redirect_uri,omitempty"`
 
+	// The redirect URI that's to be used for the final redirect. This might
+	// be different than the redirectURI above if the above was empty or a client
+	// modified it via its extension point.
+	FinalRedirectURI string `json:"final_redirect_uri,omitempty"`
+
 	// optional: oauth state, empty string == no state
 	State string `json:"state,omitempty"`
 
@@ -90,11 +95,16 @@ type AuthorizationHandler interface {
 	// The response type that the handler responds to
 	ResponseType() string
 
+	// validate the authentication request and return an error if something is invalid
+	// the error _may_ be an *OAuthError that will be passed to the user, but _can_
+	// be any other error.
+	ValidateAuthorizationRequest(ctx context.Context, client Client, req *AuthorizationRequest) error
+
 	// issues the authorization response value.
 	IssueAuthorizationResponse(
 		ctx context.Context,
-		req AuthorizationRequest,
 		client Client,
+		req *AuthorizationRequest,
 		user User,
-	) string
+	) (string, error)
 }

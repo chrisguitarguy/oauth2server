@@ -12,6 +12,7 @@ type SpyClient struct {
 
 	validRedirectURICalls  []string
 	validRedirectURIReturn bool
+	validRedirectURIFinal  string
 }
 
 func (c *SpyClient) ID() string {
@@ -30,9 +31,9 @@ func (c *SpyClient) IsConfidential() bool {
 	return c.confidential
 }
 
-func (c *SpyClient) ValidRedirectURI(ctx context.Context, redirectUri string) bool {
+func (c *SpyClient) ValidRedirectURI(ctx context.Context, redirectUri string) (string, bool) {
 	c.validRedirectURICalls = append(c.validRedirectURICalls, redirectUri)
-	return c.validRedirectURIReturn
+	return c.validRedirectURIFinal, c.validRedirectURIReturn
 }
 
 type spyPKCEVerifyCall struct {

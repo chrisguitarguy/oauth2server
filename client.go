@@ -22,7 +22,9 @@ type Client interface {
 
 // an extension point to let clients to validate their own redirect URIs.
 type ClientValidatesRedirectURI interface {
-	ValidRedirectURI(ctx context.Context, redirectUri string) bool
+	// Should return an error if the redirect URI is invalid. The first return
+	// valeu should be the redirect URI string.
+	ValidRedirectURI(ctx context.Context, redirectUri string) (string, bool)
 }
 
 // an extension point to let clients to validate their own secrets

@@ -40,7 +40,7 @@ type ServerOptions struct {
 	grants                map[string]Grant
 	authorizationHandlers map[string]AuthorizationHandler
 	scopeValidator        ScopeValidator
-	pkces                 []PKCE
+	pkce                  PKCE
 }
 
 type ServerOption func(*ServerOptions)
@@ -66,9 +66,9 @@ func WithScopeValidator(s ScopeValidator) ServerOption {
 	}
 }
 
-func WithPKCE(p ...PKCE) ServerOption {
+func WithPKCE(p PKCE) ServerOption {
 	return func(opts *ServerOptions) {
-		opts.pkces = append(opts.pkces, p...)
+		opts.pkce = p
 	}
 }
 
@@ -84,7 +84,6 @@ func NewAuthorizationServer(clients ClientRepository, config ...ServerOption) Au
 	options := &ServerOptions{
 		grants:                make(map[string]Grant),
 		authorizationHandlers: make(map[string]AuthorizationHandler),
-		scopeValidator:        AllowAllScopes(),
 	}
 	for _, c := range config {
 		c(options)
@@ -94,12 +93,18 @@ func NewAuthorizationServer(clients ClientRepository, config ...ServerOption) Au
 		options.scopeValidator = AllowAllScopes()
 	}
 
-	pkce := NewDefaultPKCE(options.pkces...)
+	if options.pkce == nil {
+		options.pkce = NewDefaultPKCE()
+	}
+
+	if options.scopeValidator == nil {
+		options.scopeValidator = AllowAllScopes()
+	}
 
 	return &defaultAuthorizationServer{
 		clients:               clients,
 		scopeValidator:        options.scopeValidator,
-		pkce:                  pkce,
+		pkce:                  options.pkce,
 		grants:                options.grants,
 		authorizationHandlers: options.authorizationHandlers,
 	}
@@ -116,9 +121,11 @@ func (s *defaultAuthorizationServer) ValidateAuthorizationRequest(ctx context.Co
 		return nil, clientErr
 	}
 
-	if err := ValidateRedirectURI(ctx, client, authReq.RedirectURI); err != nil {
-		return nil, err
+	finalRedirectUri, reErr := ValidateRedirectURI(ctx, client, authReq.RedirectURI)
+	if reErr != nil {
+		return nil, reErr
 	}
+	authReq.FinalRedirectURI = finalRedirectUri
 
 	// at this point we know the redirect URI is valid and any error from here out
 	// can be sent back to the redirect URI.
@@ -127,12 +134,13 @@ func (s *defaultAuthorizationServer) ValidateAuthorizationRequest(ctx context.Co
 		return authReq, err
 	}
 
-	if err := s.scopeValidator.ValidateScopes(ctx, authReq.Scope); err != nil {
-		return authReq, MaybeWrapError(err)
+	for _, k := range authReq.ResponseType {
+		if err := s.authorizationHandlers[k].ValidateAuthorizationRequest(ctx, client, authReq); err != nil {
+			return authReq, MaybeWrapError(err)
+		}
 	}
 
-	// TODO
-	return nil, nil
+	return authReq, nil
 }
 
 func (s *defaultAuthorizationServer) DenyAuthorizationRequest(ctx context.Context, req *AuthorizationRequest, reason string) *OAuthError {
