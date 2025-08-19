@@ -7,7 +7,9 @@ import (
 	"net/url"
 )
 
-// Represents a valid authorization request
+// Represents a valid authorization request, this is meant to be able to be
+// serialized to JSON to be stored in something like a session so the /authorize
+// endpoint of a server can redirect a user for approval if necessary.
 type AuthorizationRequest struct {
 	// the oauth client initiation the request
 	ClientID string `json:"client_id"`
@@ -50,11 +52,10 @@ func ParseAuthorizationRequest(req *http.Request) (*AuthorizationRequest, *OAuth
 
 	queryString, err := url.ParseQuery(req.URL.RawQuery)
 	if err != nil {
-		return nil, &OAuthError{
-			ErrorType:        ErrorTypeInvalidRequest,
-			ErrorDescription: ErrCouldNotParseQueryString.Error(),
-			Cause:            fmt.Errorf("%w: %w", ErrCouldNotParseQueryString, err),
-		}
+		return nil, InvalidRequestWithCause(
+			fmt.Errorf("%w: %w", ErrCouldNotParseQueryString, err),
+			ErrCouldNotParseQueryString.Error(),
+		)
 	}
 
 	responseType := queryString.Get(ParamResponseType)

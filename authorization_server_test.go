@@ -2,10 +2,31 @@ package oauth2server_test
 
 import (
 	"context"
+	"errors"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"testing"
 
 	"github.com/chrisguitarguy/oauth2server"
 )
+
+const (
+	testClientId     = "testclientid"
+	testClientSecret = "shhhh"
+	testRedirectUri  = "https://example.com/oauth2/callback"
+)
+
+func newAuthorizeRequestWithQueryString(t *testing.T, query map[string]string) *http.Request {
+	t.Helper()
+
+	uv := url.Values{}
+	for k, v := range query {
+		uv.Add(k, v)
+	}
+
+	return httptest.NewRequest(http.MethodGet, "/authorize?"+uv.Encode(), nil)
+}
 
 type authorizationServerTestCase struct {
 	clients *oauth2server.InMemoryClientRepository
@@ -22,7 +43,21 @@ func startAuthorizationServerTest(t *testing.T, opts ...oauth2server.ServerOptio
 	}
 }
 
-func TestDefaultAuthorizationServer_ReturnsAccessDeniedErrorFromDenyAuthorizationRequest(t *testing.T) {
+func (tc *authorizationServerTestCase) assertNilAuthRequest(t *testing.T, authReq *oauth2server.AuthorizationRequest) {
+	t.Helper()
+	if authReq != nil {
+		t.Errorf("Expected nil authorization request, got %T", authReq)
+	}
+}
+
+func (tc *authorizationServerTestCase) assertNotNilAuthRequest(t *testing.T, authReq *oauth2server.AuthorizationRequest) {
+	t.Helper()
+	if authReq == nil {
+		t.Errorf("Expected not-nil authorization request, got %T", authReq)
+	}
+}
+
+func TestDefaultAuthorizationServer_DenyAuthorizationRequest_ReturnsAccessDeniedErrorFromDenyAuthorizationRequest(t *testing.T) {
 	tc := startAuthorizationServerTest(t)
 
 	err := tc.server.DenyAuthorizationRequest(
@@ -36,5 +71,82 @@ func TestDefaultAuthorizationServer_ReturnsAccessDeniedErrorFromDenyAuthorizatio
 	}
 	if err.ErrorDescription != "nope" {
 		t.Errorf(`expected error description from reason argument: %q != "nope"`, err.ErrorDescription)
+	}
+}
+
+func TestDefaultAuthorizationServer_ValidateAuthorizationRequest_ErrorsIfInvalidAuthorizationRequest(t *testing.T) {
+	tc := startAuthorizationServerTest(t)
+	req := httptest.NewRequest(http.MethodPost, "/authorize", nil)
+
+	authReq, err := tc.server.ValidateAuthorizationRequest(req.Context(), req)
+
+	tc.assertNilAuthRequest(t, authReq)
+	if !errors.Is(err, oauth2server.ErrInvalidRequestMethod) {
+		t.Errorf("expected ErrInvalidRequestMethod error, got %v", err)
+	}
+}
+
+func TestDefaultAuthorizationServer_ValidateAuthorizationRequest_ErrorIfClientIsNotFound(t *testing.T) {
+	tc := startAuthorizationServerTest(t)
+	req := newAuthorizeRequestWithQueryString(t, map[string]string{
+		oauth2server.ParamResponseType: "code",
+		oauth2server.ParamClientID:     testClientId,
+		oauth2server.ParamRedirectURI:  testRedirectUri,
+	})
+	expectedErr := errors.New("error from client")
+	tc.clients.AddError(testClientId, expectedErr)
+
+	authReq, err := tc.server.ValidateAuthorizationRequest(req.Context(), req)
+
+	tc.assertNilAuthRequest(t, authReq)
+	if !errors.Is(err, expectedErr) {
+		t.Errorf("Expected error propagated from clients, got %v", err)
+	}
+}
+
+func TestDefaultAuthorizationServer_ValidateAuthorizationRequest_ErrorsIfRedirectURIValidationFails(t *testing.T) {
+	tc := startAuthorizationServerTest(t)
+	req := newAuthorizeRequestWithQueryString(t, map[string]string{
+		oauth2server.ParamResponseType: "code",
+		oauth2server.ParamClientID:     testClientId,
+		oauth2server.ParamRedirectURI:  "https://other.example.com/invalid-redirect-uri",
+	})
+	client := oauth2server.NewSimpleClient(
+		testClientId,
+		testClientSecret,
+		[]string{testRedirectUri},
+	)
+	tc.clients.Add(client)
+
+	authReq, err := tc.server.ValidateAuthorizationRequest(req.Context(), req)
+
+	tc.assertNilAuthRequest(t, authReq)
+	if !errors.Is(err, oauth2server.ErrClientInvalidRedirectURI) {
+		t.Errorf("Expected ErrClientInvalidRedirectURI, got %v", err)
+	}
+}
+
+func TestDefaultAuthorizationServer_ValidateAuthorizationRequest_ErrorsOnUnsupportedResponseType(t *testing.T) {
+	tc := startAuthorizationServerTest(t)
+	req := newAuthorizeRequestWithQueryString(t, map[string]string{
+		oauth2server.ParamResponseType: "code",
+		oauth2server.ParamClientID:     testClientId,
+	})
+	client := oauth2server.NewSimpleClient(
+		testClientId,
+		testClientSecret,
+		[]string{testRedirectUri},
+	)
+	tc.clients.Add(client)
+
+	authReq, err := tc.server.ValidateAuthorizationRequest(req.Context(), req)
+
+	tc.assertNotNilAuthRequest(t, authReq)
+	if err == nil || err.ErrorType != oauth2server.ErrorTypeUnsupportedResponseType {
+		t.Errorf(
+			"Expected a %q error, got %v",
+			oauth2server.ErrorTypeUnsupportedResponseType,
+			err,
+		)
 	}
 }
