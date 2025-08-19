@@ -97,10 +97,6 @@ func NewAuthorizationServer(clients ClientRepository, config ...ServerOption) Au
 		options.pkce = NewDefaultPKCE()
 	}
 
-	if options.scopeValidator == nil {
-		options.scopeValidator = AllowAllScopes()
-	}
-
 	return &defaultAuthorizationServer{
 		clients:               clients,
 		scopeValidator:        options.scopeValidator,

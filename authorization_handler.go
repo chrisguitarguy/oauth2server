@@ -99,7 +99,11 @@ type AuthorizationHandler interface {
 	// validate the authentication request and return an error if something is invalid
 	// the error _may_ be an *OAuthError that will be passed to the user, but _can_
 	// be any other error.
-	ValidateAuthorizationRequest(ctx context.Context, client Client, req *AuthorizationRequest) error
+	ValidateAuthorizationRequest(
+		ctx context.Context,
+		client Client,
+		req *AuthorizationRequest,
+	) error
 
 	// issues the authorization response value.
 	IssueAuthorizationResponse(

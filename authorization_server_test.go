@@ -8,6 +8,9 @@ import (
 	"net/url"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
+
 	"github.com/chrisguitarguy/oauth2server"
 )
 
@@ -148,5 +151,108 @@ func TestDefaultAuthorizationServer_ValidateAuthorizationRequest_ErrorsOnUnsuppo
 			oauth2server.ErrorTypeUnsupportedResponseType,
 			err,
 		)
+	}
+}
+
+func TestDefaultAuthorizationServer_ValidateAuthorizationRequest_ErrorsIfClientDoesNotSupportResponseType(t *testing.T) {
+	authHandler := &spyAuthorizationHandler{
+		responseType: "test",
+	}
+	tc := startAuthorizationServerTest(t, oauth2server.WithAuthorizationHandler(authHandler))
+	req := newAuthorizeRequestWithQueryString(t, map[string]string{
+		oauth2server.ParamResponseType: authHandler.responseType,
+		oauth2server.ParamClientID:     testClientId,
+	})
+	client := &SpyClient{
+		id:                       testClientId,
+		redirectUris:             []string{testRedirectUri},
+		validRedirectURIReturn:   true,
+		allowsResponseTypeReturn: false,
+	}
+	tc.clients.Add(client)
+
+	authReq, err := tc.server.ValidateAuthorizationRequest(req.Context(), req)
+
+	tc.assertNotNilAuthRequest(t, authReq)
+	if err == nil || err.ErrorType != oauth2server.ErrorTypeUnauthorizedClient {
+		t.Errorf(
+			"Expected a %q error, got %v",
+			oauth2server.ErrorTypeUnauthorizedClient,
+			err,
+		)
+	}
+}
+
+func TestDefaultAuthorizationServer_ValidateAuthorizationRequest_ErrorsIfAuthorizationHandlerErrors(t *testing.T) {
+	expectedErr := errors.New("oh noz")
+	authHandler := &spyAuthorizationHandler{
+		responseType:                      "test",
+		validateAuthorizationRequestError: expectedErr,
+	}
+	tc := startAuthorizationServerTest(t, oauth2server.WithAuthorizationHandler(authHandler))
+	req := newAuthorizeRequestWithQueryString(t, map[string]string{
+		oauth2server.ParamResponseType: authHandler.responseType,
+		oauth2server.ParamClientID:     testClientId,
+	})
+	client := oauth2server.NewSimpleClient(
+		testClientId,
+		testClientSecret,
+		[]string{testRedirectUri},
+	)
+	tc.clients.Add(client)
+
+	authReq, err := tc.server.ValidateAuthorizationRequest(req.Context(), req)
+
+	tc.assertNotNilAuthRequest(t, authReq)
+	if err == nil || err.ErrorType != oauth2server.ErrorTypeServerError {
+		t.Errorf(
+			"Expected a %q error, got %v",
+			oauth2server.ErrorTypeServerError,
+			err,
+		)
+	}
+	if !errors.Is(err, expectedErr) {
+		t.Errorf(
+			"expected error %v propagated from authorization handler, got %v",
+			expectedErr,
+			err,
+		)
+	}
+}
+
+func TestDefaultAuthorizationServer_ValidateAuthorizationRequest_NoErrorIfEverythingValidates(t *testing.T) {
+	authHandler := &spyAuthorizationHandler{
+		responseType: "test",
+	}
+	tc := startAuthorizationServerTest(t, oauth2server.WithAuthorizationHandler(authHandler))
+	req := newAuthorizeRequestWithQueryString(t, map[string]string{
+		oauth2server.ParamResponseType: authHandler.responseType,
+		oauth2server.ParamClientID:     testClientId,
+		oauth2server.ParamState:        "abc123",
+	})
+	client := oauth2server.NewSimpleClient(
+		testClientId,
+		testClientSecret,
+		[]string{testRedirectUri},
+	)
+	tc.clients.Add(client)
+
+	authReq, err := tc.server.ValidateAuthorizationRequest(req.Context(), req)
+
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	tc.assertNotNilAuthRequest(t, authReq)
+
+	diff := cmp.Diff(&oauth2server.AuthorizationRequest{
+		ClientID:         testClientId,
+		FinalRedirectURI: testRedirectUri,
+		State:            "abc123",
+		ResponseType: []string{
+			authHandler.responseType,
+		},
+	}, authReq, cmpopts.IgnoreFields(oauth2server.AuthorizationRequest{}, "QueryString"))
+	if diff != "" {
+		t.Error(diff)
 	}
 }
